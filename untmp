@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+"""
+untmp
+Take a tmplinux container and convert it to one of the following:
+
+1. squashfs
+   1.1 put it in /srv/containers               --srv, -s
+   1.2 put it in /var/lib/tmplinux             --def, -d
+   1.3 put it in the current working directory (default)
+
+2. folder
+   2.1 put it in /srv/chroots                  (default)
+   2.2 put it in the current working directory --cwd, -c
+
+Syntax:
+    untmp [type] (--flags) [name]
+
+Examples:
+    untmp sfs --srv tmparch
+    untmp folder -c c-Ab23
+    untmp 2.2 c-Ab23
+    untmp 1.3 tmpdebian
+"""
+
+import os
+import sys
+import shutil
+
+def print_help():
+    self_path = os.path.abspath(sys.argv[0])
+    with open(self_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    comment_block = []
+    for line in lines:
+        if line.startswith("#") or line.strip() == "":
+            comment_block.append(line)
+        else:
+            break
+    # remove shebang
+    if comment_block and comment_block[0].startswith("#!"):
+        comment_block = comment_block[1:]
+    # clean '# ' or '#'
+    cleaned = []
+    for line in comment_block:
+        if line.startswith("# "):
+            cleaned.append(line[2:])
+        elif line.startswith("#"):
+            cleaned.append(line[1:])
+        else:
+            cleaned.append(line)
+    print("".join(cleaned), end="")
+
+# ---- Container path resolution ----
+def resolve_container_path(boxname):
+    """Return the host path of the container root"""
+    if boxname.startswith("c-"):
+        container_id = boxname[2:]  # any-length ID
+        src = os.path.join("/tmp", f"container-{container_id}")
+    elif boxname.startswith("tmp"):
+        container_type = boxname[3:]  # any-length type
+        path_file = f"/run/tmp{container_type}"
+        if not os.path.exists(path_file):
+            print(f"Error: {path_file} does not exist")
+            sys.exit(1)
+        with open(path_file, "r", encoding="utf-8") as f:
+            hostname = f.read().strip()
+        src = os.path.join("/tmp", hostname)
+    else:
+        print("Invalid box name")
+        sys.exit(1)
+
+    if not os.path.exists(src):
+        print(f"Error: Source {src} does not exist")
+        sys.exit(1)
+
+    return src
+
+# ---- Create SquashFS ----
+def createsfs(boxname, targetloc):
+    src = resolve_container_path(boxname)
+    os.makedirs(os.path.dirname(targetloc) or ".", exist_ok=True)
+    os.system(f"mksquashfs {src} {targetloc} -noappend -comp xz")
+
+# ---- Copy container folder ----
+def copybox(boxname, targetloc):
+    src = resolve_container_path(boxname)
+    # If targetloc is a directory, copy inside it with container basename
+    if os.path.isdir(targetloc):
+        targetloc = os.path.join(targetloc, os.path.basename(src))
+    os.makedirs(os.path.dirname(targetloc) or ".", exist_ok=True)
+    shutil.copytree(src, targetloc, dirs_exist_ok=True)
+
+# ---- Argument parsing ----
+args = sys.argv[1:]
+if not args or "--help" in args or "-h" in args:
+    print_help()
+    sys.exit(0)
+
+type_arg = args[0]
+flag = ""
+name = ""
+
+if len(args) > 1 and args[1].startswith("-"):
+    flag = args[1]
+    if len(args) > 2:
+        name = args[2]
+    else:
+        print(f"Incomplete command. Run {sys.argv[0]} --help")
+        sys.exit(1)
+elif len(args) > 1:
+    name = args[1]
+else:
+    print(f"Incomplete command. Run {sys.argv[0]} --help")
+    sys.exit(1)
+
+# ---- Normalize type ----
+if type_arg.lower() == "sfs":
+    if flag in ("-s", "--srv"):
+        type_final = "1.1"
+    elif flag in ("-d", "--def"):
+        type_final = "1.2"
+    else:
+        type_final = "1.3"
+elif type_arg.lower() == "folder":
+    if flag in ("-c", "--cwd"):
+        type_final = "2.2"
+    else:
+        type_final = "2.1"
+elif len(type_arg) > 2 and type_arg[2].isdigit():
+    type_final = type_arg
+else:
+    print("Not a valid command in some way")
+    sys.exit(1)
+
+# ---- Execute ----
+if type_final == "1.1":  # sfs in /srv/containers
+    os.makedirs("/srv/containers", exist_ok=True)
+    createsfs(name, f"/srv/containers/{name}.sfs")
+elif type_final == "1.2":  # sfs in /var/lib/tmplinux
+    os.makedirs("/var/lib/tmplinux", exist_ok=True)
+    createsfs(name, f"/var/lib/tmplinux/{name}.sfs")
+elif type_final == "1.3":  # sfs in cwd
+    createsfs(name, os.path.join(os.getcwd(), f"{name}.sfs"))
+elif type_final == "2.1":  # rootfs in /srv/chroots
+    target = os.path.join("/srv/chroots", name)
+    os.makedirs(target, exist_ok=True)
+    copybox(name, target)
+elif type_final == "2.2":  # rootfs in cwd
+    copybox(name, os.getcwd())
+
