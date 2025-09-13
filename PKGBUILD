@@ -1,5 +1,5 @@
 pkgname=untmp
-pkgver=1.0.0
+pkgver=1.0.1
 pkgrel=1
 pkgdesc="Take an tmplinux container and make it no longer temporary"
 arch=('any')

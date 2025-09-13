@@ -31,25 +31,19 @@ def print_help():
     with open(self_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
     comment_block = []
+    ammount_of_quotequotequote=0
     for line in lines:
-        if line.startswith("#") or line.strip() == "":
+        if not "\"\"\"" in line:
             comment_block.append(line)
         else:
+            ammount_of_quotequotequote=ammount_of_quotequotequote+1
+        if ammount_of_quotequotequote==2:
             break
     # remove shebang
     if comment_block and comment_block[0].startswith("#!"):
         comment_block = comment_block[1:]
-    # clean '# ' or '#'
-    cleaned = []
-    for line in comment_block:
-        if line.startswith("# "):
-            cleaned.append(line[2:])
-        elif line.startswith("#"):
-            cleaned.append(line[1:])
-        else:
-            cleaned.append(line)
-    print("".join(cleaned), end="")
-
+    for i in comment_block:
+        print(i, end="")
 # ---- Container path resolution ----
 def resolve_container_path(boxname):
     """Return the host path of the container root"""
