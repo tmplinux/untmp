@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+((EUID==0)) || { echo "run as root"; exit 1; }
+SFS="$1"
+[[ -n "$SFS" ]] || { echo "please pass in a squashfs"; exit 1; }
+TMP=$(mktemp -d /tmp/container-XXXX)
+trap 'echo "Repacking $SFS..."; mksquashfs "$TMP" "$SFS" -comp zstd -noappend; rm -rf "$TMP"' EXIT
+unsquashfs -f -d "$TMP" "$SFS"
+systemd-nspawn -D "$TMP" --boot -E TERM=linux
+
