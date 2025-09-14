@@ -20,3 +20,11 @@ untmp folder -c c-Ab23
 untmp 2.2 c-Ab23
 untmp 1.3 tmpdebian
 ```
+
+## qboot
+Included is `qboot`, an command that let's you do permanant changes to an squashfs image.
+
+Nice and simple:
+```
+qboot c-Ab23.sfs
+```
